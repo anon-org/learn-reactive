@@ -23,6 +23,9 @@ func (r *repository) Fetch(ctx context.Context, in <-chan string) <-chan string 
 		}()
 
 		ids := make([]string, 0)
+
+		// need to be sync to collect all ids
+		// other wise the query run N times where N = len(ids)
 		for id := range in {
 			select {
 			case <-ctx.Done():

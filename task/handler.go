@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"example/domain"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -16,6 +15,10 @@ type handler struct {
 }
 
 func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	now := time.Now()
+	defer func() {
+		log.Println(time.Now().Sub(now))
+	}()
 	out := make(chan string)
 	ctx, cancel := context.WithCancel(r.Context())
 	defer func() {
@@ -41,16 +44,22 @@ func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			out <- ch
 		}
 	}()
+	resp := &domain.TaskFetchResponse{
+		Names: make([]string, 0),
+	}
 
-	w.WriteHeader(http.StatusOK)
 	for ch := range out {
 		select {
 		case <-ctx.Done():
 			log.Println("ctx done")
 		default:
-			fmt.Fprintf(w, "%s\n", ch)
+			resp.Names = append(resp.Names, ch)
 		}
 	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
 }
 
 func stream(ctx context.Context, body io.Reader) <-chan string {
@@ -68,7 +77,6 @@ func stream(ctx context.Context, body io.Reader) <-chan string {
 			close(out)
 		}()
 		for _, str := range req.IDs {
-			time.Sleep(time.Second)
 			log.Println("send", str, "to out chan")
 			out <- str
 		}
